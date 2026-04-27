@@ -1,0 +1,39 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  apiKey    String   @unique @default(uuid())
+  createdAt DateTime @default(now())
+  
+  // Kullanıcının anlık şarkı verisi
+  playback  Playback?
+}
+
+model Playback {
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id])
+  
+  title              String   @default("")
+  artist             String   @default("")
+  album              String   @default("")
+  artwork            String   @default("")
+  currentTime        String   @default("0:00")
+  totalTime          String   @default("0:00")
+  currentTimeSeconds Float    @default(0)
+  totalTimeSeconds   Float    @default(0)
+  isPlaying          Boolean  @default(false)
+  updatedAt          DateTime @updatedAt
+}
