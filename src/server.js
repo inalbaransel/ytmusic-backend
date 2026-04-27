@@ -49,7 +49,11 @@ app.post('/api/auth/register', async (req, res) => {
             }
         });
         
-        res.status(201).json({ message: "Kullanıcı oluşturuldu!", apiKey: user.apiKey });
+        res.status(201).json({ 
+            message: "Kullanıcı oluşturuldu!", 
+            id: user.id,
+            apiKey: user.apiKey 
+        });
     } catch (error) {
         res.status(400).json({ error: "E-posta zaten kullanımda olabilir." });
     }
@@ -65,12 +69,16 @@ app.post('/api/auth/login', async (req, res) => {
     }
     
     const token = jwt.sign({ userId: user.id }, JWT_SECRET);
-    res.json({ token, apiKey: user.apiKey });
+    res.json({ 
+        token, 
+        id: user.id,
+        apiKey: user.apiKey 
+    });
 });
 
 
 // --- INGEST ENDPOINT (Eklentiden Gelen Veri) ---
-
+// BU BÖLÜM GİZLİ KALMALI (API KEY İLE ÇALIŞIR)
 app.post('/api/ingest', ingestLimiter, async (req, res) => {
     const { apiKey, data } = req.body;
     
@@ -115,13 +123,13 @@ app.post('/api/ingest', ingestLimiter, async (req, res) => {
 
 
 // --- PUBLIC STATUS ENDPOINT (Kullanıcının Sitesi İçin) ---
-
-app.get('/api/status/:apiKey', async (req, res) => {
-    const { apiKey } = req.params;
+// BU BÖLÜM HERKESE AÇIK OLABİLİR (API KEY DEĞİL, USER ID KULLANIR)
+app.get('/api/status/:userId', async (req, res) => {
+    const { userId } = req.params;
     
     try {
         const user = await prisma.user.findUnique({
-            where: { apiKey },
+            where: { id: userId },
             include: { playback: true }
         });
         
