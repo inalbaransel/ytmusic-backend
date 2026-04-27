@@ -92,12 +92,18 @@ app.post('/api/ingest', ingestLimiter, async (req, res) => {
         
         if (!user) return res.status(403).json({ error: "Geçersiz API Key." });
         
-        // Veriyi güncelle veya oluştur (Karakter sınırlarıyla güvenliği sağla)
+        // Mevcut veriyi çek (eğer varsa)
+        const currentPlayback = user.playback;
+
+        // Sadece yeni veri DOLUYSA (title ve artist varsa) güncelle
+        // Boşsa eski veriyi koru ama isPlaying durumunu güncelle
+        const hasNewSongInfo = data.title && data.artist;
+
         const playbackData = {
-            title: String(data.title || "").substring(0, 200),
-            artist: String(data.artist || "").substring(0, 100),
-            album: String(data.album || "").substring(0, 100),
-            artwork: String(data.artwork || "").substring(0, 500),
+            title: hasNewSongInfo ? String(data.title).substring(0, 200) : (currentPlayback?.title || ""),
+            artist: hasNewSongInfo ? String(data.artist).substring(0, 100) : (currentPlayback?.artist || ""),
+            album: hasNewSongInfo ? String(data.album || "").substring(0, 100) : (currentPlayback?.album || ""),
+            artwork: hasNewSongInfo ? String(data.artwork || "").substring(0, 500) : (currentPlayback?.artwork || ""),
             currentTime: String(data.currentTime || "0:00").substring(0, 15),
             totalTime: String(data.totalTime || "0:00").substring(0, 15),
             currentTimeSeconds: Number(data.currentTimeSeconds) || 0,
