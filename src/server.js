@@ -142,8 +142,25 @@ app.get('/api/status/:userId', async (req, res) => {
         if (!user || !user.playback) {
             return res.status(404).json({ error: "Veri bulunamadı." });
         }
+
+        const playback = user.playback;
         
-        res.json(user.playback);
+        // --- TIMEOUT KONTROLÜ ---
+        // Eğer son güncelleme üzerinden 15 saniye geçtiyse, şarkı durmuş kabul edilir.
+        const now = new Date();
+        const updatedAt = new Date(playback.updatedAt);
+        const diffInSeconds = (now - updatedAt) / 1000;
+
+        if (diffInSeconds > 15 && playback.isPlaying) {
+            playback.isPlaying = false;
+            // Veritabanını güncelleerek durumu kalıcı hale getir
+            await prisma.playback.update({
+                where: { userId: user.id },
+                data: { isPlaying: false }
+            }).catch(err => console.error("Playback update error:", err));
+        }
+        
+        res.json(playback);
     } catch (error) {
         res.status(500).json({ error: "Sunucu hatası." });
     }
