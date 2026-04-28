@@ -99,6 +99,25 @@ app.post('/api/ingest', ingestLimiter, async (req, res) => {
         // Boşsa eski veriyi koru ama isPlaying durumunu güncelle
         const hasNewSongInfo = data.title && data.artist;
 
+        // --- GEÇMİŞ KAYDI (SONG LOG) ---
+        // Eğer gelen şarkı, mevcut çalınan şarkıdan farklıysa geçmişe kaydet
+        const isNewSong = hasNewSongInfo && (
+            data.title !== currentPlayback?.title || 
+            data.artist !== currentPlayback?.artist
+        );
+
+        if (isNewSong) {
+            await prisma.songLog.create({
+                data: {
+                    userId: user.id,
+                    title: String(data.title).substring(0, 200),
+                    artist: String(data.artist).substring(0, 100),
+                    album: String(data.album || "").substring(0, 100),
+                    artwork: String(data.artwork || "").substring(0, 500)
+                }
+            });
+        }
+
         const playbackData = {
             title: hasNewSongInfo ? String(data.title).substring(0, 200) : (currentPlayback?.title || ""),
             artist: hasNewSongInfo ? String(data.artist).substring(0, 100) : (currentPlayback?.artist || ""),
@@ -160,9 +179,78 @@ app.get('/api/status/:userId', async (req, res) => {
             }).catch(err => console.error("Playback update error:", err));
         }
         
-        res.json(playback);
+        // --- TOPLAM DİNLENME SAYISI (Bu Şarkı İçin) ---
+        const totalListens = await prisma.songLog.count({
+            where: {
+                userId: user.id,
+                title: playback.title,
+                artist: playback.artist
+            }
+        });
+
+        res.json({
+            ...playback,
+            totalListens
+        });
     } catch (error) {
         res.status(500).json({ error: "Sunucu hatası." });
+    }
+});
+
+// --- STATS ENDPOINT (Kullanıcı İstatistikleri) ---
+app.get('/api/stats/:userId', async (req, res) => {
+    const { userId } = req.params;
+
+    try {
+        // 1. Son 10 Şarkı (Benzersiz ve Dinlenme Sayılarıyla)
+        const last10 = await prisma.$queryRaw`
+            SELECT title, artist, artwork, MAX("playedAt") as "playedAt", COUNT(*)::int as count 
+            FROM "SongLog" 
+            WHERE "userId" = ${userId} 
+            GROUP BY title, artist, artwork 
+            ORDER BY "playedAt" DESC 
+            LIMIT 10
+        `;
+
+        // 2. En Çok Dinlenen Şarkılar (Top 5)
+        const topSongs = await prisma.$queryRaw`
+            SELECT title, artist, artwork, COUNT(*)::int as count 
+            FROM "SongLog" 
+            WHERE "userId" = ${userId} 
+            GROUP BY title, artist, artwork 
+            ORDER BY count DESC 
+            LIMIT 5
+        `;
+
+        // 3. En Sevilen Sanatçılar (Top 3)
+        const topArtists = await prisma.$queryRaw`
+            SELECT artist, COUNT(*)::int as count 
+            FROM "SongLog" 
+            WHERE "userId" = ${userId} 
+            GROUP BY artist 
+            ORDER BY count DESC 
+            LIMIT 3
+        `;
+
+        // 4. Aylık Dinleme Sayısı
+        const now = new Date();
+        const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthlyCount = await prisma.songLog.count({
+            where: {
+                userId,
+                playedAt: { gte: firstDayOfMonth }
+            }
+        });
+
+        res.json({
+            history: last10,
+            topSongs,
+            topArtists,
+            monthlyCount
+        });
+    } catch (error) {
+        console.error("Stats error:", error);
+        res.status(500).json({ error: "İstatistikler alınamadı." });
     }
 });
 

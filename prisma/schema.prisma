@@ -19,6 +19,8 @@ model User {
   
   // Kullanıcının anlık şarkı verisi
   playback  Playback?
+  // Kullanıcının geçmiş şarkı verileri
+  history   SongLog[]
 }
 
 model Playback {
@@ -36,4 +38,18 @@ model Playback {
   totalTimeSeconds   Float    @default(0)
   isPlaying          Boolean  @default(false)
   updatedAt          DateTime @updatedAt
+}
+
+model SongLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  
+  title     String
+  artist    String
+  album     String   @default("")
+  artwork   String   @default("")
+  playedAt  DateTime @default(now())
+
+  @@index([userId])
 }
